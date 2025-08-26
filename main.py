@@ -389,9 +389,9 @@ BASE_HTML = """
         <div class="inline-block p-4 rounded-full bg-white/20 backdrop-blur-sm mb-4">
           <i class="fas fa-star text-4xl text-yellow-400 icon-float"></i>
         </div>
-        <h1 class="text-4xl md:text-6xl font-bold text-white mb-2">
-          <span class="gradient-text">AstroDISC™</span> Lite
-        </h1>
+                  <h1 class="text-4xl md:text-6xl font-bold text-white mb-2">
+            <span class="text-white">AstroDISC™</span> Lite
+          </h1>
         <p class="text-xl text-white/90 max-w-2xl mx-auto">
           Discover your perfect career path through the harmony of astrology and personality insights
         </p>
