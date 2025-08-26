@@ -47,33 +47,76 @@ if GEMINI_API_KEY:
                 print(f"⚠️  Could not list models: {e}")
                 return []
         
-        # List available models first
-        available_models_list = list_available_models()
-        
-        # Try different model names - the API has changed over time
-        available_models = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
-        GEMINI_MODEL = None
-        
-        for model_name in available_models:
+        # Function to test API connection
+        def test_api_connection():
             try:
-                GEMINI_MODEL = genai.GenerativeModel(model_name)
-                # Test the model with a simple prompt
-                response = GEMINI_MODEL.generate_content("Hello")
-                if response and response.text:
-                    print(f"✅ Gemini API configured successfully with model: {model_name}")
-                    break
-            except Exception as model_error:
-                print(f"⚠️  Model {model_name} failed: {model_error}")
-                continue
+                print("🔍 Testing API connection...")
+                # Try to list models first
+                models = list(genai.list_models())  # Convert generator to list
+                print(f"✅ API connection successful. Found {len(models)} models.")
+                return True
+            except Exception as e:
+                print(f"❌ API connection failed: {e}")
+                print(f"💡 Error type: {type(e).__name__}")
+                if "404" in str(e):
+                    print("💡 404 error suggests model not found or API version mismatch")
+                elif "403" in str(e):
+                    print("💡 403 error suggests API key permission issues")
+                elif "401" in str(e):
+                    print("💡 401 error suggests invalid API key")
+                return False
         
-        if GEMINI_MODEL:
-            GEMINI_AVAILABLE = True
-        else:
-            print("❌ No working Gemini model found")
+        # Test API connection first
+        if not test_api_connection():
+            print("❌ Cannot proceed with model testing due to API connection issues")
             GEMINI_AVAILABLE = False
+        else:
+            # List available models first
+            available_models_list = list_available_models()
             
+            # Try different model names - updated for current API version
+            # The API has changed and these are the current model names
+            available_models = [
+                'gemini-1.5-pro-latest',  # Latest stable version
+                'gemini-1.5-pro-002',     # Stable version from September 2024
+                'gemini-1.5-pro',         # Stable version from May 2024
+                'gemini-1.5-flash-latest', # Latest flash version
+                'gemini-1.5-flash-002',   # Stable flash version
+                'gemini-1.5-flash',       # Flash alias
+                'gemini-2.0-flash',       # Newer 2.0 version
+                'gemini-2.0-flash-001'    # Stable 2.0 version
+            ]
+            GEMINI_MODEL = None
+            
+            for model_name in available_models:
+                try:
+                    print(f"🔍 Testing model: {model_name}")
+                    GEMINI_MODEL = genai.GenerativeModel(model_name)
+                    # Test the model with a simple prompt
+                    response = GEMINI_MODEL.generate_content("Hello")
+                    if response and response.text:
+                        print(f"✅ Gemini API configured successfully with model: {model_name}")
+                        break
+                    else:
+                        print(f"⚠️  Model {model_name} returned empty response")
+                except Exception as model_error:
+                    print(f"⚠️  Model {model_name} failed: {model_error}")
+                    continue
+            
+            if GEMINI_MODEL:
+                GEMINI_AVAILABLE = True
+                print(f"🎯 Using Gemini model: {GEMINI_MODEL.model_name}")
+            else:
+                print("❌ No working Gemini model found")
+                print("💡 This might be due to:")
+                print("   - API key permissions")
+                print("   - Model availability in your region")
+                print("   - API version compatibility")
+                GEMINI_AVAILABLE = False
+                
     except Exception as e:
         print(f"⚠️  Gemini API configuration failed: {e}")
+        print(f"💡 Error details: {type(e).__name__}")
         GEMINI_AVAILABLE = False
 else:
     GEMINI_AVAILABLE = False
@@ -461,7 +504,7 @@ BASE_HTML = """
       <div class="mt-6 text-center">
         <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-white/80 text-sm">
           <i class="fas fa-info-circle"></i>
-          <span>This app works without an API key. To enable a real LLM, set GEMINI_API_KEY in .env</span>
+          
         </div>
       </div>
     </main>
@@ -692,7 +735,7 @@ BASE_HTML = """
       });
 
       cliBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText('python astrodisc_app.py --cli')
+        navigator.clipboard.writeText('python main.py --cli')
         .then(() => {
           // Show success feedback
           cliBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
@@ -704,7 +747,7 @@ BASE_HTML = """
           }, 2000);
         })
         .catch(() => {
-          alert('Failed to copy command. Please copy manually: python astrodisc_app.py --cli');
+          alert('Failed to copy command. Please copy manually: python main.py --cli');
         });
       })
 
