@@ -853,8 +853,8 @@ def run_cli():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='AstroDISC™ Lite — Web UI + CLI')
     parser.add_argument('--cli', action='store_true', help='Run in CLI mode and print the paragraph to console')
-    parser.add_argument('--host', default='127.0.0.1', help='Host for web server')
-    parser.add_argument('--port', default=5000, type=int, help='Port for web server')
+    parser.add_argument('--host', default=os.environ.get('HOST', '0.0.0.0'), help='Host for web server')
+    parser.add_argument('--port', default=int(os.environ.get('PORT', 5000)), type=int, help='Port for web server')
     args = parser.parse_args()
 
     if args.cli:
