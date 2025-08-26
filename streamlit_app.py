@@ -2,10 +2,6 @@ import streamlit as st
 import google.generativeai as genai
 import os
 import textwrap
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # Page configuration
 st.set_page_config(
@@ -14,6 +10,304 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# Configuration - Support both .env and Streamlit secrets
+BIRTH_CHART = "Sun in Libra, Ascendant in Capricorn"
+DISC_PROFILE = "High C, low I"
+
+# Gemini API Configuration with Streamlit secrets support
+@st.cache_resource
+def configure_gemini_api():
+    """Configure Gemini API with automatic model detection"""
+    # Try to get API key from Streamlit secrets first, then environment variables
+    api_key = None
+    
+    # Method 1: Streamlit secrets (for Streamlit Cloud deployment)
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY")
+    except:
+        pass
+    
+    # Method 2: Environment variables (for local development)
+    if not api_key:
+        api_key = os.getenv("GEMINI_API_KEY")
+    
+    if not api_key:
+        return None, "No API key found in secrets or environment"
+    
+    try:
+        genai.configure(api_key=api_key)
+        
+        # Try different model names
+        available_models = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
+        working_model = None
+        
+        for model_name in available_models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                # Test the model
+                response = model.generate_content("Hello")
+                if response and response.text:
+                    working_model = model
+                    break
+            except Exception as e:
+                continue
+        
+        if working_model:
+            return working_model, "API configured successfully"
+        else:
+            return None, "No working model found"
+            
+    except Exception as e:
+        return None, f"Configuration failed: {str(e)}"
+
+# Fallback generator function
+def generate_fallback_paragraph(birth_chart: str, disc: str) -> str:
+    """Rule-based paragraph generator for offline use"""
+    parts = []
+    
+    parts.append("With Sun in Libra, you naturally value fairness, relationships, and balance, and with an Ascendant in Capricorn, you bring a steady, disciplined approach to how you present yourself at work.")
+    parts.append("Your DISC profile — high Conscientiousness and low Influence — suggests you thrive in roles that reward precision, structure, and deep thinking rather than constant social selling or networking.")
+    parts.append("A fulfilling career path for you could be in areas like project coordination, compliance, technical writing, data analysis, or quality assurance — roles where a methodological mindset and an eye for detail are prized.")
+    parts.append("To maximize satisfaction, look for positions that allow collaborative harmony (so your Libra strengths are honored) but offer clear frameworks, measurable goals, and opportunities to work independently on structured tasks that showcase your reliability.")
+
+    paragraph = " ".join(parts)
+    return textwrap.fill(paragraph, width=100)
+
+# Gemini API generation function
+def generate_gemini_paragraph(model, birth_chart: str, disc: str) -> str:
+    """Generate career recommendation using Gemini API"""
+    try:
+        prompt = f"""Synthesize a career recommendation based on a person with a birth chart indicating '{birth_chart}' and a DISC profile of '{disc}'. 
+
+The final output should be a single paragraph written in a friendly, conversational tone, suitable for a personalized report. 
+
+Key themes to explore:
+- Balancing an innate desire for harmony with a disciplined work ethic
+- Leveraging a detail-oriented nature in a role that values structure
+- Finding career paths that align with both astrological and personality traits
+
+Please provide exactly one well-structured paragraph that synthesizes these insights into actionable career advice."""
+
+        response = model.generate_content(prompt)
+        
+        if response and response.text:
+            paragraph = response.text.strip()
+            # Ensure it's a single paragraph
+            paragraph = ' '.join(paragraph.split())
+            
+            # If response is too long, truncate to reasonable length
+            if len(paragraph) > 500:
+                sentences = paragraph.split('. ')
+                paragraph = '. '.join(sentences[:3]) + '.'
+            
+            return paragraph
+        else:
+            return "API returned empty response"
+            
+    except Exception as e:
+        return f"API error: {str(e)}"
+
+# Main application
+def main():
+    # Main container with gradient background
+    st.markdown('<div class="main">', unsafe_allow_html=True)
+    
+    # Header section with floating star
+    st.markdown("""
+    <div class="header-section">
+        <div class="floating-star">
+            <span style="font-size: 3rem;">⭐</span>
+        </div>
+        <h1 class="main-title">AstroDISC™ Lite</h1>
+        <p class="subtitle">Discover your perfect career path through the harmony of astrology and personality insights</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Main glass card
+    st.markdown('<div class="glass-card slide-in">', unsafe_allow_html=True)
+    
+    # Card header
+    st.markdown("""
+    <div class="card-header">
+        <div class="ai-badge">
+            <span>🔮</span>
+            <span>AI-Powered Career Insights</span>
+        </div>
+        <h2 class="card-title">Your Personalized Career Snapshot</h2>
+        <p class="card-description">Get instant career recommendations based on your unique astrological and DISC profile</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # API Status
+    model, status = configure_gemini_api()
+    if model:
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <div class="status-badge status-success" style="display: inline-block;">
+                <span>✅ Gemini API Available</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <div class="status-badge status-warning" style="display: inline-block;">
+                <span>⚠️ Using Fallback Generator</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Input section
+    st.markdown('<div class="input-section">', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div class="input-label">
+            <span>☀️</span>
+            <span>Birth Chart</span>
+        </div>
+        """, unsafe_allow_html=True)
+        birth_chart = st.text_input(
+            "",
+            value=BIRTH_CHART,
+            placeholder="Enter your birth chart details...",
+            key="birth_chart",
+            label_visibility="collapsed"
+        )
+    
+    with col2:
+        st.markdown("""
+        <div class="input-label">
+            <span>👤</span>
+            <span>DISC Profile</span>
+        </div>
+        """, unsafe_allow_html=True)
+        disc_profile = st.text_input(
+            "",
+            value=DISC_PROFILE,
+            placeholder="Enter your DISC profile...",
+            key="disc_profile",
+            label_visibility="collapsed"
+        )
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Button section
+    st.markdown('<div class="button-container">', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        generate_clicked = st.button(
+            "🚀 Generate Career Report",
+            key="generate",
+            use_container_width=True
+        )
+    
+    with col2:
+        if st.button("🧹 Clear", key="clear", use_container_width=True):
+            st.rerun()
+    
+    with col3:
+        if st.button("📋 Copy CLI", key="cli", use_container_width=True):
+            st.info("CLI command: python main.py --cli")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Results section
+    st.markdown("""
+    <div class="result-section">
+        <div class="result-header">
+            <h3 class="result-title">Your Career Recommendation</h3>
+            <div class="pulse-dot"></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Results display
+    if generate_clicked:
+        with st.spinner("🔮 Analyzing your cosmic alignment and personality traits..."):
+            if model:
+                # Use Gemini API
+                result = generate_gemini_paragraph(model, birth_chart, disc_profile)
+                source = "Gemini API"
+                source_color = "status-success"
+            else:
+                # Use fallback generator
+                result = generate_fallback_paragraph(birth_chart, disc_profile)
+                source = "Fallback Generator"
+                source_color = "status-warning"
+            
+            # Display results with exact Flask styling
+            st.markdown(f"""
+            <div class="result-box">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; color: #059669;">
+                        <span style="font-size: 1.25rem;">✅</span>
+                        <span style="font-weight: 600;">Career Recommendation Generated!</span>
+                    </div>
+                    <div class="status-badge {source_color}">
+                        {source}
+                    </div>
+                </div>
+                
+                <div style="background: white; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Based on your inputs:</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.875rem; color: #6b7280;">
+                        <div><strong>Birth Chart:</strong> {birth_chart}</div>
+                        <div><strong>DISC Profile:</strong> {disc_profile}</div>
+                    </div>
+                </div>
+                
+                <div style="color: #374151; line-height: 1.6;">
+                    {result}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        # Default state
+        st.markdown("""
+        <div class="result-box">
+            <div style="text-align: center; color: #6b7280;">
+                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">✨</div>
+                <p>Click "Generate Career Report" to get your personalized recommendation</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Footer
+    st.markdown("""
+    <div class="footer">
+        <div class="footer-item">
+            <span>🛡️</span>
+            <span>Built for assessment — includes offline fallback generator</span>
+        </div>
+        <div class="footer-item">
+            <span>🚀</span>
+            <span>Demo · Responsive · Local-first</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)  # Close glass card
+    
+    # Info card
+    st.markdown("""
+    <div class="info-card">
+        <div class="info-badge">
+            <span>ℹ️</span>
+            <span>This app works without an API key. To enable a real LLM, set GEMINI_API_KEY in .env</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)  # Close main container
+
+if __name__ == "__main__":
+    main()
 
 # Custom CSS to match Flask version exactly
 st.markdown("""
@@ -366,289 +660,3 @@ st.markdown("""
     header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
-
-# Configuration
-BIRTH_CHART = "Sun in Libra, Ascendant in Capricorn"
-DISC_PROFILE = "High C, low I"
-
-# Gemini API Configuration
-@st.cache_resource
-def configure_gemini_api():
-    """Configure Gemini API with automatic model detection"""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return None, "No API key found"
-    
-    try:
-        genai.configure(api_key=api_key)
-        
-        # Try different model names
-        available_models = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
-        working_model = None
-        
-        for model_name in available_models:
-            try:
-                model = genai.GenerativeModel(model_name)
-                # Test the model
-                response = model.generate_content("Hello")
-                if response and response.text:
-                    working_model = model
-                    break
-            except Exception as e:
-                continue
-        
-        if working_model:
-            return working_model, "API configured successfully"
-        else:
-            return None, "No working model found"
-            
-    except Exception as e:
-        return None, f"Configuration failed: {str(e)}"
-
-# Fallback generator function
-def generate_fallback_paragraph(birth_chart: str, disc: str) -> str:
-    """Rule-based paragraph generator for offline use"""
-    parts = []
-    
-    parts.append("With Sun in Libra, you naturally value fairness, relationships, and balance, and with an Ascendant in Capricorn, you bring a steady, disciplined approach to how you present yourself at work.")
-    parts.append("Your DISC profile — high Conscientiousness and low Influence — suggests you thrive in roles that reward precision, structure, and deep thinking rather than constant social selling or networking.")
-    parts.append("A fulfilling career path for you could be in areas like project coordination, compliance, technical writing, data analysis, or quality assurance — roles where a methodological mindset and an eye for detail are prized.")
-    parts.append("To maximize satisfaction, look for positions that allow collaborative harmony (so your Libra strengths are honored) but offer clear frameworks, measurable goals, and opportunities to work independently on structured tasks that showcase your reliability.")
-
-    paragraph = " ".join(parts)
-    return textwrap.fill(paragraph, width=100)
-
-# Gemini API generation function
-def generate_gemini_paragraph(model, birth_chart: str, disc: str) -> str:
-    """Generate career recommendation using Gemini API"""
-    try:
-        prompt = f"""Synthesize a career recommendation based on a person with a birth chart indicating '{birth_chart}' and a DISC profile of '{disc}'. 
-
-The final output should be a single paragraph written in a friendly, conversational tone, suitable for a personalized report. 
-
-Key themes to explore:
-- Balancing an innate desire for harmony with a disciplined work ethic
-- Leveraging a detail-oriented nature in a role that values structure
-- Finding career paths that align with both astrological and personality traits
-
-Please provide exactly one well-structured paragraph that synthesizes these insights into actionable career advice."""
-
-        response = model.generate_content(prompt)
-        
-        if response and response.text:
-            paragraph = response.text.strip()
-            # Ensure it's a single paragraph
-            paragraph = ' '.join(paragraph.split())
-            
-            # If response is too long, truncate to reasonable length
-            if len(paragraph) > 500:
-                sentences = paragraph.split('. ')
-                paragraph = '. '.join(sentences[:3]) + '.'
-            
-            return paragraph
-        else:
-            return "API returned empty response"
-            
-    except Exception as e:
-        return f"API error: {str(e)}"
-
-# Main application
-def main():
-    # Main container with gradient background
-    st.markdown('<div class="main">', unsafe_allow_html=True)
-    
-    # Header section with floating star
-    st.markdown("""
-    <div class="header-section">
-        <div class="floating-star">
-            <span style="font-size: 3rem;">⭐</span>
-        </div>
-        <h1 class="main-title">AstroDISC™ Lite</h1>
-        <p class="subtitle">Discover your perfect career path through the harmony of astrology and personality insights</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Main glass card
-    st.markdown('<div class="glass-card slide-in">', unsafe_allow_html=True)
-    
-    # Card header
-    st.markdown("""
-    <div class="card-header">
-        <div class="ai-badge">
-            <span>🔮</span>
-            <span>AI-Powered Career Insights</span>
-        </div>
-        <h2 class="card-title">Your Personalized Career Snapshot</h2>
-        <p class="card-description">Get instant career recommendations based on your unique astrological and DISC profile</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # API Status
-    model, status = configure_gemini_api()
-    if model:
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <div class="status-badge status-success" style="display: inline-block;">
-                <span>✅ Gemini API Available</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <div class="status-badge status-warning" style="display: inline-block;">
-                <span>⚠️ Using Fallback Generator</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Input section
-    st.markdown('<div class="input-section">', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        <div class="input-label">
-            <span>☀️</span>
-            <span>Birth Chart</span>
-        </div>
-        """, unsafe_allow_html=True)
-        birth_chart = st.text_input(
-            "",
-            value=BIRTH_CHART,
-            placeholder="Enter your birth chart details...",
-            key="birth_chart",
-            label_visibility="collapsed"
-        )
-    
-    with col2:
-        st.markdown("""
-        <div class="input-label">
-            <span>👤</span>
-            <span>DISC Profile</span>
-        </div>
-        """, unsafe_allow_html=True)
-        disc_profile = st.text_input(
-            "",
-            value=DISC_PROFILE,
-            placeholder="Enter your DISC profile...",
-            key="disc_profile",
-            label_visibility="collapsed"
-        )
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Button section
-    st.markdown('<div class="button-container">', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([2, 1, 1])
-    
-    with col1:
-        generate_clicked = st.button(
-            "🚀 Generate Career Report",
-            key="generate",
-            use_container_width=True
-        )
-    
-    with col2:
-        if st.button("🧹 Clear", key="clear", use_container_width=True):
-            st.rerun()
-    
-    with col3:
-        if st.button("📋 Copy CLI", key="cli", use_container_width=True):
-            st.info("CLI command: python main.py --cli")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Results section
-    st.markdown("""
-    <div class="result-section">
-        <div class="result-header">
-            <h3 class="result-title">Your Career Recommendation</h3>
-            <div class="pulse-dot"></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Results display
-    if generate_clicked:
-        with st.spinner("🔮 Analyzing your cosmic alignment and personality traits..."):
-            if model:
-                # Use Gemini API
-                result = generate_gemini_paragraph(model, birth_chart, disc_profile)
-                source = "Gemini API"
-                source_color = "status-success"
-            else:
-                # Use fallback generator
-                result = generate_fallback_paragraph(birth_chart, disc_profile)
-                source = "Fallback Generator"
-                source_color = "status-warning"
-            
-            # Display results with exact Flask styling
-            st.markdown(f"""
-            <div class="result-box">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; color: #059669;">
-                        <span style="font-size: 1.25rem;">✅</span>
-                        <span style="font-weight: 600;">Career Recommendation Generated!</span>
-                    </div>
-                    <div class="status-badge {source_color}">
-                        {source}
-                    </div>
-                </div>
-                
-                <div style="background: white; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-                    <div style="font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Based on your inputs:</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.875rem; color: #6b7280;">
-                        <div><strong>Birth Chart:</strong> {birth_chart}</div>
-                        <div><strong>DISC Profile:</strong> {disc_profile}</div>
-                    </div>
-                </div>
-                
-                <div style="color: #374151; line-height: 1.6;">
-                    {result}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        # Default state
-        st.markdown("""
-        <div class="result-box">
-            <div style="text-align: center; color: #6b7280;">
-                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">✨</div>
-                <p>Click "Generate Career Report" to get your personalized recommendation</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Footer
-    st.markdown("""
-    <div class="footer">
-        <div class="footer-item">
-            <span>🛡️</span>
-            <span>Built for assessment — includes offline fallback generator</span>
-        </div>
-        <div class="footer-item">
-            <span>🚀</span>
-            <span>Demo · Responsive · Local-first</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)  # Close glass card
-    
-    # Info card
-    st.markdown("""
-    <div class="info-card">
-        <div class="info-badge">
-            <span>ℹ️</span>
-            <span>This app works without an API key. To enable a real LLM, set GEMINI_API_KEY in .env</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)  # Close main container
-
-if __name__ == "__main__":
-    main()
